@@ -204,11 +204,25 @@ async def ingest_pdfs(files: list[UploadFile] = File(...)):
                 detail=f"Only PDF files are accepted. Got: {file.filename}",
             )
         dest = RAW_PDF_DIR / file.filename
-        with open(dest, "wb") as f:
-            content = await file.read()
-            f.write(content)
+        try:
+            with open(dest, "wb") as f:
+                content = await file.read()
+                f.write(content)
+            logger.info("[API] Saved {} ({} bytes)", file.filename, len(content))
+        except PermissionError as exc:
+            if dest.exists() and dest.stat().st_size > 0:
+                logger.warning(
+                    "[API] File {} is locked (PermissionError) but already exists and is non-empty. "
+                    "Proceeding with the existing file. Error: {}",
+                    file.filename, exc,
+                )
+            else:
+                logger.error("[API] Permission denied writing to new file {}: {}", file.filename, exc)
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Permission denied writing to {file.filename}: {exc}",
+                )
         saved_paths.append(dest)
-        logger.info("[API] Saved {} ({} bytes)", file.filename, len(content))
 
     # Run extraction pipeline (in thread to not block event loop)
     try:

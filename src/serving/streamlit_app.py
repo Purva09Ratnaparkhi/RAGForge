@@ -216,18 +216,25 @@ def query_api_streaming(query: str, history: list[str]):
         )
         event_type = ""
         data_buffer = ""
+        has_data = False
 
         for line in resp.iter_lines(decode_unicode=True):
             if not line:
-                if event_type and data_buffer:
+                if event_type or has_data:
                     yield {"event": event_type, "data": data_buffer}
                     event_type = ""
                     data_buffer = ""
+                    has_data = False
                 continue
             if line.startswith("event:"):
                 event_type = line[6:].strip()
             elif line.startswith("data:"):
-                data_buffer = line[5:].strip()
+                val = line[6:] if line.startswith("data: ") else line[5:]
+                if has_data:
+                    data_buffer += "\n" + val
+                else:
+                    data_buffer = val
+                    has_data = True
     except Exception as e:
         yield {"event": "error", "data": json.dumps({"error": str(e)})}
 

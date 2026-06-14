@@ -90,18 +90,37 @@ CHUNK_SUMMARY_PROMPT = ChatPromptTemplate.from_template(
 # ── Guardrails ───────────────────────────────────────────────────────────
 
 GROUNDEDNESS_PROMPT = ChatPromptTemplate.from_template(
-    "Context: {context}\n"
-    "Answer: {answer}\n\n"
-    "Is every factual claim in the answer directly supported by the context?\n"
-    'Respond with JSON: {{"grounded": true/false, "unsupported_claims": ["..."]}}'
+    "You are a strict fact-checking assistant. Your job is to verify whether the Answer is fully grounded in the provided Context.\n\n"
+    "Guidelines:\n"
+    "1. An answer is grounded (grounded: true) if all factual assertions, numbers, technical details, and claims in the answer are directly supported by or can be logically inferred from the context.\n"
+    "2. If the answer states that it cannot answer, does not have enough information, or that the context does not contain the answer (i.e. a refusal or out-of-scope response), it is GROUNDED (grounded: true).\n"
+    "3. General transition words, introductory/concluding summaries, or polite statements (e.g., 'If you have any questions related to the Transformer model, I would be happy to help.') are grounded and should NOT be flagged as unsupported claims.\n"
+    "4. Flag as unsupported only concrete factual claims, numbers, or technical statements in the answer that are completely missing from or contradict the context.\n\n"
+    "Context:\n{context}\n\n"
+    "Answer:\n{answer}\n\n"
+    "Is the answer grounded in the context according to the guidelines?\n"
+    "Respond with JSON in the following format:\n"
+    "{{\n"
+    "  \"grounded\": true,\n"
+    "  \"unsupported_claims\": []\n"
+    "}}"
 )
 
 CONFIDENCE_PROMPT = ChatPromptTemplate.from_template(
-    "Context: {context}\n"
-    "Question: {question}\n"
-    "Answer: {answer}\n\n"
-    "On a scale of 0-10, how well does the context support this answer?\n"
-    'Respond with JSON: {{"confidence": 8, "reasoning": "..."}}'
+    "Analyze how well the Context supports the Answer to the Question.\n\n"
+    "Guidelines:\n"
+    "1. If the Answer is a correct and detailed response supported by the Context, score it high (8-10).\n"
+    "2. If the Answer correctly states that the Context does not contain enough information to answer the question, and this is true, score it high (10) because this is a correct refusal.\n"
+    "3. If the Answer makes claims not supported by the Context, score it lower based on the severity of the unsupported claims.\n\n"
+    "Context:\n{context}\n\n"
+    "Question: {question}\n\n"
+    "Answer:\n{answer}\n\n"
+    "Rate the confidence (0 to 10) and provide a brief reasoning.\n"
+    "Respond with JSON in the following format:\n"
+    "{{\n"
+    "  \"confidence\": 10,\n"
+    "  \"reasoning\": \"description of support quality\"\n"
+    "}}"
 )
 
 # ── Out of Scope ─────────────────────────────────────────────────────────

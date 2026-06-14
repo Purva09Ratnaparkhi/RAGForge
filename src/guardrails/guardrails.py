@@ -107,7 +107,7 @@ def check_groundedness(context: str, answer: str, llm) -> dict:
     logger.debug("[Guardrails] Running groundedness check")
     try:
         chain = GROUNDEDNESS_PROMPT | llm
-        result = chain.invoke({"context": context[:3000], "answer": answer})
+        result = chain.invoke({"context": context, "answer": answer})
         text = result.content if hasattr(result, "content") else str(result)
         parsed = _parse_json_response(text)
         return {
@@ -226,7 +226,7 @@ def score_confidence(
     try:
         chain = CONFIDENCE_PROMPT | llm
         result = chain.invoke({
-            "context": context[:3000],
+            "context": context,
             "question": question,
             "answer": answer,
         })

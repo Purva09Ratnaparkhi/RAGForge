@@ -121,19 +121,50 @@ def compress(
         len(documents), query[:80],
     )
 
-    pipeline = build_compressor(llm, embedder)
+    from langchain_core.prompts import ChatPromptTemplate
 
+    extract_prompt = ChatPromptTemplate.from_template(
+        "Given the following text, extract ONLY the sentences that are "
+        "directly relevant to answering the question. If no sentences "
+        "are relevant, respond with 'NO_RELEVANT_CONTENT'.\n\n"
+        "Question: {question}\n\n"
+        "Text:\n{text}\n\n"
+        "Relevant sentences:"
+    )
+
+    chain = extract_prompt | llm
     compressed: list[Document] = []
+
     for doc in documents:
         try:
-            result = pipeline.compress_documents([doc], query)
-            compressed.extend(result)
+            result = chain.invoke({
+                "question": query,
+                "text": doc.page_content[:2000],
+            })
+            text = result.content if hasattr(result, "content") else str(result)
+
+            # Skip if LLM found nothing relevant
+            if not text.strip() or "NO_RELEVANT_CONTENT" in text:
+                logger.debug("[Compressor] Chunk had no relevant content, skipping")
+                continue
+
+            compressed.append(
+                Document(
+                    page_content=text.strip(),
+                    metadata={**doc.metadata, "compressed": True},
+                )
+            )
         except Exception as exc:
             logger.warning(
                 "[Compressor] Failed to compress chunk: {}. Keeping original.",
                 exc,
             )
             compressed.append(doc)
+
+    # If compression removed everything, fall back to originals
+    if not compressed:
+        logger.warning("[Compressor] All chunks filtered out. Keeping originals.")
+        compressed = list(documents)
 
     # Final dedup pass
     seen: set[str] = set()
