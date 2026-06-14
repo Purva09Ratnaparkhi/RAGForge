@@ -184,6 +184,11 @@ class PyMuPDF4LLMExtractor:
         logger.info(
             "[PyMuPDF4LLM] {} → {} pages extracted", pdf_path.name, len(pages)
         )
+        with open("extracted_pages.txt", "w", encoding="utf-8") as f:
+            for page in pages:
+                f.write(f"Page {page['page']}\n")
+                f.write(page['text'])
+                f.write("\n\n")
         return pages
 
 

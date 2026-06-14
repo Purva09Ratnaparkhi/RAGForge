@@ -43,7 +43,7 @@ API_BASE = "http://localhost:8000"
 
 st.set_page_config(
     page_title="RAGForge — Research Paper Q&A",
-    page_icon="🔬",
+    page_icon="RF",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -52,94 +52,205 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    /* Main container */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    /* ── Base ────────────────────────────────── */
+    html, body, .stApp {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    /* Apply Inter to text elements only — do NOT override icon fonts */
+    .stMarkdown, .stText, .stCaption, .stChatMessage,
+    p, h1, h2, h3, h4, h5, h6, span, li, td, th, label, input, textarea, button {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    /* Preserve Streamlit's Material Symbols icon font */
+    [data-testid="stIconMaterial"],
+    .material-symbols-rounded,
+    span[class*="Icon"] {
+        font-family: 'Material Symbols Rounded' !important;
+    }
     .stApp {
-        background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0f0f23 100%);
+        background-color: #0e1117;
     }
 
-    /* Sidebar */
+    /* ── Sidebar ─────────────────────────────── */
     section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #1a1a3e 0%, #0d0d2b 100%);
-        border-right: 1px solid rgba(99, 102, 241, 0.2);
+        background-color: #161b22;
+        border-right: 1px solid #21262d;
     }
 
-    /* Chat messages */
+    /* ── Chat messages ───────────────────────── */
     .stChatMessage {
-        background: rgba(30, 30, 60, 0.6);
-        border: 1px solid rgba(99, 102, 241, 0.15);
-        border-radius: 12px;
-        backdrop-filter: blur(10px);
+        background-color: #161b22;
+        border: 1px solid #21262d;
+        border-radius: 8px;
     }
 
-    /* Badges */
-    .confidence-high {
-        background: linear-gradient(135deg, #10b981, #059669);
-        color: white;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 0.85em;
-        font-weight: 600;
+    /* ── Confidence badges ───────────────────── */
+    .conf-badge {
         display: inline-block;
+        padding: 3px 10px;
+        border-radius: 4px;
+        font-size: 0.8em;
+        font-weight: 600;
+        letter-spacing: 0.01em;
     }
-    .confidence-medium {
-        background: linear-gradient(135deg, #f59e0b, #d97706);
-        color: white;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 0.85em;
-        font-weight: 600;
-        display: inline-block;
+    .conf-high {
+        background-color: rgba(63, 185, 80, 0.15);
+        color: #3fb950;
+        border: 1px solid rgba(63, 185, 80, 0.3);
     }
-    .confidence-low {
-        background: linear-gradient(135deg, #ef4444, #dc2626);
-        color: white;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 0.85em;
-        font-weight: 600;
-        display: inline-block;
+    .conf-mid {
+        background-color: rgba(210, 153, 34, 0.15);
+        color: #d29922;
+        border: 1px solid rgba(210, 153, 34, 0.3);
+    }
+    .conf-low {
+        background-color: rgba(248, 81, 73, 0.15);
+        color: #f85149;
+        border: 1px solid rgba(248, 81, 73, 0.3);
     }
 
-    /* Title gradient */
-    .title-gradient {
-        background: linear-gradient(90deg, #818cf8, #a78bfa, #c084fc);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-size: 2.2em;
-        font-weight: 800;
+    /* ── App header ──────────────────────────── */
+    .app-title {
+        font-size: 1.5em;
+        font-weight: 700;
+        color: #e6edf3;
         letter-spacing: -0.02em;
+        margin: 0;
+        padding: 0;
+    }
+    .app-subtitle {
+        font-size: 0.85em;
+        color: #7d8590;
+        margin-top: 2px;
     }
 
-    /* Source cards */
-    .source-card {
-        background: rgba(99, 102, 241, 0.08);
-        border: 1px solid rgba(99, 102, 241, 0.2);
-        border-radius: 8px;
-        padding: 10px 14px;
-        margin: 4px 0;
-        font-size: 0.9em;
+    /* ── Sidebar header ──────────────────────── */
+    .sidebar-brand {
+        font-size: 1.25em;
+        font-weight: 700;
+        color: #e6edf3;
+        letter-spacing: -0.01em;
     }
-
-    /* Upload area */
-    .stFileUploader {
-        border: 2px dashed rgba(99, 102, 241, 0.3) !important;
-        border-radius: 12px !important;
-    }
-
-    /* Buttons */
-    .stButton > button {
-        background: linear-gradient(135deg, #6366f1, #8b5cf6);
-        color: white;
-        border: none;
-        border-radius: 8px;
+    .sidebar-section {
+        font-size: 0.8em;
         font-weight: 600;
-        transition: all 0.3s ease;
+        color: #7d8590;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 4px;
+    }
+
+    /* ── Status indicator ────────────────────── */
+    .status-online {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.85em;
+        color: #3fb950;
+    }
+    .status-online::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #3fb950;
+        display: inline-block;
+        flex-shrink: 0;
+    }
+    .status-offline {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.85em;
+        color: #f85149;
+    }
+    .status-offline::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #f85149;
+        display: inline-block;
+        flex-shrink: 0;
+    }
+
+    /* ── Source cards ─────────────────────────── */
+    .source-card {
+        background-color: #161b22;
+        border: 1px solid #21262d;
+        border-radius: 6px;
+        padding: 8px 12px;
+        margin: 3px 0;
+        font-size: 0.85em;
+        color: #c9d1d9;
+    }
+    .source-card strong {
+        color: #e6edf3;
+    }
+
+    /* ── Document list item ──────────────────── */
+    .doc-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 6px;
+        font-size: 0.88em;
+        color: #c9d1d9;
+        background-color: rgba(110, 118, 129, 0.04);
+        margin-bottom: 4px;
+    }
+    .doc-icon {
+        width: 14px;
+        height: 16px;
+        flex-shrink: 0;
+    }
+
+    /* ── Upload area ─────────────────────────── */
+    .stFileUploader {
+        border: 1px dashed #30363d !important;
+        border-radius: 8px !important;
+    }
+
+    /* ── Buttons ─────────────────────────────── */
+    .stButton > button {
+        background-color: #21262d;
+        color: #c9d1d9;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        font-weight: 500;
+        font-size: 0.88em;
+        transition: background-color 0.15s ease, border-color 0.15s ease;
     }
     .stButton > button:hover {
-        background: linear-gradient(135deg, #818cf8, #a78bfa);
-        transform: translateY(-1px);
-        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        background-color: #30363d;
+        border-color: #484f58;
+        color: #e6edf3;
     }
+
+    /* Primary action button override */
+    .stButton > button[kind="primary"],
+    div[data-testid="stButton"] > button:first-child {
+        background-color: #238636;
+        border-color: rgba(35, 134, 54, 0.4);
+        color: #ffffff;
+    }
+    div[data-testid="stButton"] > button:first-child:hover {
+        background-color: #2ea043;
+        border-color: rgba(46, 160, 67, 0.4);
+    }
+
+    /* ── Divider ─────────────────────────────── */
+    hr {
+        border-color: #21262d !important;
+    }
+
+    /* ── Hide Streamlit branding ─────────────── */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header[data-testid="stHeader"] {background: transparent;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -169,15 +280,15 @@ def get_confidence_badge(score: float) -> str:
         HTML span element.
     """
     if score >= 0.8:
-        css_class = "confidence-high"
-        label = f"✓ High Confidence ({score:.0%})"
+        css = "conf-badge conf-high"
+        label = f"High confidence · {score:.0%}"
     elif score >= 0.6:
-        css_class = "confidence-medium"
-        label = f"⚠ Medium Confidence ({score:.0%})"
+        css = "conf-badge conf-mid"
+        label = f"Medium confidence · {score:.0%}"
     else:
-        css_class = "confidence-low"
-        label = f"✗ Low Confidence ({score:.0%})"
-    return f'<span class="{css_class}">{label}</span>'
+        css = "conf-badge conf-low"
+        label = f"Low confidence · {score:.0%}"
+    return f'<span class="{css}">{label}</span>'
 
 
 def check_api_health() -> dict | None:
@@ -262,10 +373,23 @@ def query_api_sync(query: str, history: list[str]) -> dict:
         return {"answer": f"Error: {e}", "sources": [], "guardrail_result": {}}
 
 
+# ── SVG Icons ────────────────────────────────────────────────────────────
+
+_ICON_FILE = (
+    '<svg class="doc-icon" viewBox="0 0 16 16" fill="currentColor">'
+    '<path d="M3.75 1.5a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h8.5'
+    "a.25.25 0 0 0 .25-.25V4.664a.25.25 0 0 0-.073-.177l-2.914-2.914"
+    "a.25.25 0 0 0-.177-.073ZM3.75 0h5.336c.464 0 .909.184 1.237.513"
+    "l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 "
+    '12.25 16h-8.5A1.75 1.75 0 0 1 2 14.25V1.75C2 .784 2.784 0 3.75 0Z"/>'
+    "</svg>"
+)
+
+
 # ── Sidebar ──────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.markdown('<p class="title-gradient">🔬 RAGForge</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sidebar-brand">RAGForge</p>', unsafe_allow_html=True)
     st.caption("Research Paper Q&A System")
 
     st.divider()
@@ -273,14 +397,21 @@ with st.sidebar:
     # API Status
     health = check_api_health()
     if health:
-        st.success(f"🟢 API Online — {health.get('documents_count', 0)} docs indexed")
+        doc_count = health.get("documents_count", 0)
+        st.markdown(
+            f'<span class="status-online">Online — {doc_count} doc{"s" if doc_count != 1 else ""} indexed</span>',
+            unsafe_allow_html=True,
+        )
     else:
-        st.error("🔴 API Offline — Start with: `python main.py`")
+        st.markdown(
+            '<span class="status-offline">Offline — run: python main.py</span>',
+            unsafe_allow_html=True,
+        )
 
     st.divider()
 
     # PDF Upload
-    st.subheader("📄 Upload Papers")
+    st.markdown('<p class="sidebar-section">Upload Papers</p>', unsafe_allow_html=True)
     uploaded_files = st.file_uploader(
         "Drop PDF files here",
         type=["pdf"],
@@ -288,7 +419,7 @@ with st.sidebar:
         label_visibility="collapsed",
     )
 
-    if uploaded_files and st.button("⚡ Process Documents", use_container_width=True):
+    if uploaded_files and st.button("Process Documents", use_container_width=True):
         with st.spinner("Processing PDFs..."):
             files = [
                 ("files", (f.name, f.getvalue(), "application/pdf"))
@@ -299,7 +430,7 @@ with st.sidebar:
                 if resp.status_code == 200:
                     data = resp.json()
                     st.success(
-                        f"✓ Processed {data['files_processed']} files → "
+                        f"Processed {data['files_processed']} files — "
                         f"{data['total_chunks']} chunks"
                     )
                 else:
@@ -310,14 +441,20 @@ with st.sidebar:
     st.divider()
 
     # Document list
-    st.subheader("📚 Indexed Documents")
+    st.markdown(
+        '<p class="sidebar-section">Indexed Documents</p>',
+        unsafe_allow_html=True,
+    )
     try:
         docs_resp = requests.get(f"{API_BASE}/documents", timeout=3)
         if docs_resp.status_code == 200:
             docs_data = docs_resp.json()
             if docs_data["count"] > 0:
                 for doc in docs_data["documents"]:
-                    st.markdown(f"• {doc['filename']}")
+                    st.markdown(
+                        f'<div class="doc-item">{_ICON_FILE} {doc["filename"]}</div>',
+                        unsafe_allow_html=True,
+                    )
             else:
                 st.caption("No documents indexed yet.")
         else:
@@ -330,7 +467,7 @@ with st.sidebar:
     # Actions
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("🗑️ Clear Docs", use_container_width=True):
+        if st.button("Clear Docs", use_container_width=True):
             try:
                 requests.delete(f"{API_BASE}/documents", timeout=10)
                 st.success("Documents cleared")
@@ -338,7 +475,7 @@ with st.sidebar:
             except Exception as e:
                 st.error(str(e))
     with col2:
-        if st.button("🧹 Clear Chat", use_container_width=True):
+        if st.button("Clear Chat", use_container_width=True):
             st.session_state.messages = []
             st.session_state.history = []
             st.rerun()
@@ -346,8 +483,13 @@ with st.sidebar:
 
 # ── Main panel ───────────────────────────────────────────────────────────
 
-st.markdown('<p class="title-gradient">Research Paper Q&A</p>', unsafe_allow_html=True)
-st.caption("Ask questions about your uploaded research papers. Powered by RAGForge.")
+st.markdown('<p class="app-title">Research Paper Q&A</p>', unsafe_allow_html=True)
+st.markdown(
+    '<p class="app-subtitle">'
+    "Ask questions about your uploaded research papers. Powered by RAGForge."
+    "</p>",
+    unsafe_allow_html=True,
+)
 
 # Display chat history
 for msg in st.session_state.messages:
@@ -371,13 +513,13 @@ for msg in st.session_state.messages:
 
             # Sources
             if meta.get("sources"):
-                with st.expander(f"📖 Sources ({len(meta['sources'])} chunks)"):
+                with st.expander(f"Sources ({len(meta['sources'])} chunks)"):
                     for src in meta["sources"]:
                         st.markdown(
                             f'<div class="source-card">'
-                            f"📄 **{src.get('source', 'unknown')}** "
-                            f"— Page {src.get('page', '?')} "
-                            f"— Section: {src.get('section', 'unknown')}"
+                            f"<strong>{src.get('source', 'unknown')}</strong>"
+                            f" — Page {src.get('page', '?')}"
+                            f" — Section: {src.get('section', 'unknown')}"
                             f"</div>",
                             unsafe_allow_html=True,
                         )
@@ -440,13 +582,13 @@ if prompt := st.chat_input("Ask a question about your papers..."):
                 st.warning(guardrails["warning"])
 
             if sources:
-                with st.expander(f"📖 Sources ({len(sources)} chunks)"):
+                with st.expander(f"Sources ({len(sources)} chunks)"):
                     for src in sources:
                         st.markdown(
                             f'<div class="source-card">'
-                            f"📄 **{src.get('source', 'unknown')}** "
-                            f"— Page {src.get('page', '?')} "
-                            f"— Section: {src.get('section', 'unknown')}"
+                            f"<strong>{src.get('source', 'unknown')}</strong>"
+                            f" — Page {src.get('page', '?')}"
+                            f" — Section: {src.get('section', 'unknown')}"
                             f"</div>",
                             unsafe_allow_html=True,
                         )
