@@ -1,5 +1,5 @@
 """
-PDF Text Extractors — four extraction back-ends.
+PDF Text Extractors — six extraction back-ends.
 =================================================
 
 Each extractor converts a PDF file into a list of ``PageDict`` objects —
@@ -8,17 +8,21 @@ and quality gate understand.
 
 Extractors (in priority order for native PDFs)
 ----------------------------------------------
-1. **MarkerPDFExtractor** — highest-quality; produces clean Markdown from
-   complex layouts.  Uses the ``marker-pdf`` library which internally runs
-   layout detection, OCR fallback, and table structure recognition.
-2. **PDFPlumberExtractor** — good for font-encoded PDFs; also extracts
-   tables natively and converts them to Markdown.
-3. **PyMuPDFExtractor** — fast and reliable baseline.  Uses ``fitz`` for
-   plain-text extraction plus block-level bounding box metadata.
+1. **PyMuPDF4LLMExtractor** — fast, LLM-optimised Markdown output using
+   ``pymupdf4llm``.  Built on top of PyMuPDF for speed.
+2. **DoclingExtractor** — IBM's document understanding library with
+   layout analysis, table extraction, and Markdown output.
+3. **PyMuPDFExtractor** — fast and reliable plain-text baseline using
+   ``fitz`` with block-level bounding box metadata.
 4. **TesseractExtractor** — OCR-only; used when the PDF is scanned.
 
-Why four extractors?
---------------------
+Legacy extractors (kept for backward compatibility)
+---------------------------------------------------
+5. **MarkerPDFExtractor** — uses ``marker-pdf`` (slow model loading).
+6. **PDFPlumberExtractor** — uses ``pdfplumber`` for font-encoded PDFs.
+
+Why multiple extractors?
+------------------------
 Academic PDFs vary wildly in encoding, layout, and scan quality.  A single
 extractor cannot handle every edge case.  The quality gate
 (``src.extraction.quality``) decides whether an extractor's output is good
@@ -114,7 +118,157 @@ def _table_to_markdown(table: list[list[str | None]]) -> str:
     return "\n".join(md_lines)
 
 
-# ── Extractor 1: marker-pdf ───────────────────────────────────────────────
+# ── Extractor 1: pymupdf4llm ─────────────────────────────────────────────
+
+
+class PyMuPDF4LLMExtractor:
+    """Primary extractor using ``pymupdf4llm`` for LLM-optimised Markdown.
+
+    This is fast because it leverages PyMuPDF under the hood — no heavy
+    neural-network models to load.  Produces clean Markdown with headings,
+    lists, and table formatting preserved.
+
+    Example
+    -------
+    >>> ext = PyMuPDF4LLMExtractor()
+    >>> pages = ext.extract("paper.pdf")
+    >>> pages[0]["text"][:50]
+    '# Introduction\\nRecent advances in ...'
+    """
+
+    def extract(self, pdf_path: str | Path) -> list[PageDict]:
+        """Extract text from a PDF using pymupdf4llm.
+
+        Parameters
+        ----------
+        pdf_path : str | Path
+            Path to the PDF file.
+
+        Returns
+        -------
+        list[PageDict]
+            One entry per page.
+        """
+        import pymupdf4llm
+
+        pdf_path = Path(pdf_path)
+        logger.info("[PyMuPDF4LLM] Extracting {}", pdf_path.name)
+
+        # page_chunks=True returns a list of dicts, one per page,
+        # each with keys: "metadata", "text", "tables", "images"
+        md_chunks = pymupdf4llm.to_markdown(
+            str(pdf_path), page_chunks=True
+        )
+
+        total = len(md_chunks)
+        pages: list[PageDict] = []
+        for i, chunk in enumerate(md_chunks):
+            text = chunk.get("text", "") if isinstance(chunk, dict) else str(chunk)
+            text = text.strip()
+            if not text:
+                # keep empty pages for page-index alignment
+                pass
+            pages.append(
+                PageDict(
+                    page=i,
+                    text=text,
+                    tables=[],  # tables are embedded in the markdown
+                    metadata=PageMetadata(
+                        total_pages=total,
+                        extractor="pymupdf4llm",
+                        format="markdown",
+                    ),
+                )
+            )
+
+        logger.info(
+            "[PyMuPDF4LLM] {} → {} pages extracted", pdf_path.name, len(pages)
+        )
+        return pages
+
+
+# ── Extractor 2: Docling ─────────────────────────────────────────────────
+
+
+class DoclingExtractor:
+    """Extractor using IBM's ``docling`` library.
+
+    Docling provides layout analysis, table extraction, and outputs
+    clean Markdown.  Heavier than pymupdf4llm but more capable on
+    complex academic layouts.
+
+    Example
+    -------
+    >>> ext = DoclingExtractor()
+    >>> pages = ext.extract("paper.pdf")
+    """
+
+    def extract(self, pdf_path: str | Path) -> list[PageDict]:
+        """Extract text from a PDF using Docling.
+
+        Parameters
+        ----------
+        pdf_path : str | Path
+            Path to the PDF file.
+
+        Returns
+        -------
+        list[PageDict]
+            One entry per page.
+        """
+        from docling.document_converter import DocumentConverter
+
+        pdf_path = Path(pdf_path)
+        logger.info("[Docling] Extracting {}", pdf_path.name)
+
+        converter = DocumentConverter()
+        result = converter.convert(str(pdf_path))
+        markdown_text = result.document.export_to_markdown()
+
+        # Docling does not natively split output per page.
+        # We use page-break markers ("---" / form-feed) when present,
+        # otherwise treat the whole document as a single logical page.
+        pages = self._split_to_pages(markdown_text, pdf_path.name)
+
+        logger.info(
+            "[Docling] {} → {} pages extracted", pdf_path.name, len(pages)
+        )
+        return pages
+
+    @staticmethod
+    def _split_to_pages(
+        markdown: str, filename: str
+    ) -> list[PageDict]:
+        """Split Docling Markdown output into per-page dicts."""
+        # Try splitting on horizontal rules or form-feed characters
+        page_pattern = re.compile(r"\n-{3,}\n|\f")
+        raw_pages = page_pattern.split(markdown)
+
+        # If no splits found, treat entire output as page 0
+        if len(raw_pages) <= 1:
+            raw_pages = [markdown]
+
+        total = len(raw_pages)
+        pages: list[PageDict] = []
+        for i, text in enumerate(raw_pages):
+            text = text.strip()
+            pages.append(
+                PageDict(
+                    page=i,
+                    text=text,
+                    tables=[],  # tables are embedded in the markdown
+                    metadata=PageMetadata(
+                        total_pages=total,
+                        extractor="docling",
+                        format="markdown",
+                    ),
+                )
+            )
+
+        return pages
+
+
+# ── Extractor 3 (legacy): marker-pdf ─────────────────────────────────────
 
 
 class MarkerPDFExtractor:
@@ -242,7 +396,7 @@ class MarkerPDFExtractor:
         return pages
 
 
-# ── Extractor 2: pdfplumber ───────────────────────────────────────────────
+# ── Extractor 4 (legacy): pdfplumber ─────────────────────────────────────
 
 
 class PDFPlumberExtractor:
@@ -375,7 +529,7 @@ class PyMuPDFExtractor:
         return pages
 
 
-# ── Extractor 4: Tesseract OCR ────────────────────────────────────────────
+# ── Extractor 4: Tesseract OCR ───────────────────────────────────────────
 
 
 class TesseractExtractor:

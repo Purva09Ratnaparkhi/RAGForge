@@ -154,9 +154,9 @@ class TestExtractorError:
         """ExtractorError stores tried extractors and scores."""
         err = ExtractorError(
             pdf_path="test.pdf",
-            tried=["marker", "pdfplumber"],
-            quality_scores={"marker": 50.0, "pdfplumber": 80.0},
+            tried=["pymupdf4llm", "docling"],
+            quality_scores={"pymupdf4llm": 50.0, "docling": 80.0},
         )
         assert err.pdf_path == "test.pdf"
         assert len(err.tried) == 2
-        assert "marker" in err.quality_scores
+        assert "pymupdf4llm" in err.quality_scores

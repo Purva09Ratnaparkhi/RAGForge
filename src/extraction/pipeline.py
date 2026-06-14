@@ -18,7 +18,7 @@ across multiple PDFs during batch ingestion.
 Connects to
 -----------
 * ``src.extraction.pdf_detector`` — PDF type classification.
-* ``src.extraction.extractors``   — the four extractor back-ends.
+* ``src.extraction.extractors``   — the six extractor back-ends.
 * ``src.extraction.quality``      — quality gate + fallback.
 * ``src.extraction.cleaner``      — 6-step cleaning.
 """
@@ -34,8 +34,8 @@ from loguru import logger
 from config.settings import PROCESSED_DIR
 from src.extraction.cleaner import clean_pages
 from src.extraction.extractors import (
-    MarkerPDFExtractor,
-    PDFPlumberExtractor,
+    DoclingExtractor,
+    PyMuPDF4LLMExtractor,
     PyMuPDFExtractor,
     TesseractExtractor,
 )
@@ -60,8 +60,8 @@ class ExtractionPipeline:
     def __init__(self) -> None:
         logger.info("[Pipeline] Initialising extraction pipeline")
         self.extractor_map = {
-            "marker": MarkerPDFExtractor(),
-            "pdfplumber": PDFPlumberExtractor(),
+            "pymupdf4llm": PyMuPDF4LLMExtractor(),
+            "docling": DoclingExtractor(),
             "pymupdf": PyMuPDFExtractor(),
             "tesseract": TesseractExtractor(),
         }
@@ -206,8 +206,8 @@ class ExtractionPipeline:
         """
         if pdf_type == "scanned":
             return "tesseract"
-        # For native/mixed, marker-pdf is always primary (best quality)
-        return "marker"
+        # For native/mixed, pymupdf4llm is always primary (fastest + good quality)
+        return "pymupdf4llm"
 
     @staticmethod
     def _save_processed(filename: str, documents: list[Document]) -> None:

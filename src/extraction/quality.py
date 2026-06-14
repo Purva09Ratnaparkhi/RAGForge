@@ -210,8 +210,8 @@ def run_fallback_chain(
         )
         raise ExtractorError(pdf_path, tried=tried, quality_scores=scores)
 
-    # Native / mixed: try pdfplumber → PyMuPDF
-    fallback_order = ["pdfplumber", "pymupdf"]
+    # Native / mixed: try docling → PyMuPDF
+    fallback_order = ["docling", "pymupdf"]
     for name in fallback_order:
         if name == primary_extractor_name:
             continue  # skip the one that already failed
